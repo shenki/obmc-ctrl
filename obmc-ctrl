@@ -22,6 +22,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 PASSWORD = '0penBmc'
 
+
 def usage():
     usage_string = """usage: {} [command]
 
@@ -48,9 +49,9 @@ if len(sys.argv) < 2:
 host = 'https://%s' % sys.argv[1]
 
 r = requests.post(host + '/login',
-        headers={'Content-Type': 'application/json'},
-        data='{"data": [ "root", "0penBmc" ] }',
-        verify = False)
+                  headers={'Content-Type': 'application/json'},
+                  data='{"data": [ "root", "0penBmc" ] }',
+                  verify=False)
 
 if r.status_code != 200:
     print('login failed: {}'.format(r.status_code))
@@ -83,10 +84,10 @@ if sys.argv[2] == 'chassis':
     url = host + '/org/openbmc/control/chassis0/action/' + action
 
     r = requests.post(url,
-            headers={'Content-Type': 'application/json'},
-            data='{"data": []}',
-            verify = False,
-            cookies = cookies)
+                      headers={'Content-Type': 'application/json'},
+                      data='{"data": []}',
+                      verify=False,
+                      cookies=cookies)
 
     print('chassis: {}'.format(r.status_code))
 
@@ -95,7 +96,7 @@ if sys.argv[2] == 'chassis':
 
 elif sys.argv[2] == 'version':
     url = host + '/org/openbmc/inventory/system'
-    r = requests.get(url, verify = False, cookies = r.cookies)
+    r = requests.get(url, verify=False, cookies=r.cookies)
 
     print(r.text)
 
@@ -113,31 +114,31 @@ elif sys.argv[2] == 'update':
     url = host + '/org/openbmc/control/flash/bmc'
 
     r = requests.post(url + '/action/prepareForUpdate',
-            headers= {'Content-Type': 'application/json'},
-            data='{"data": []}', verify = False, cookies = cookies)
+                      headers={'Content-Type': 'application/json'},
+                      data='{"data": []}', verify=False, cookies=cookies)
     if r.status_code != 200:
         print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     r = requests.put(url + '/attr/preserve_network_settings',
-            headers= {'Content-Type': 'application/json'},
-            data='{"data": 1}', verify = False, cookies = cookies)
+                     headers={'Content-Type': 'application/json'},
+                     data='{"data": 1}', verify=False, cookies=cookies)
     if r.status_code != 200:
         print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     r = requests.post(url + '/action/updateViaTftp',
-            headers= {'Content-Type': 'application/json'},
-            data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
-            verify = False, cookies = cookies)
+                      headers={'Content-Type': 'application/json'},
+                      data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
+                      verify=False, cookies=cookies)
     if r.status_code != 200:
         print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     while True:
         r = requests.post(url + '/action/GetUpdateProgress',
-                headers= {'Content-Type': 'application/json'},
-                data='{"data": []}', verify = False, cookies = cookies)
+                          headers={'Content-Type': 'application/json'},
+                          data='{"data": []}', verify=False, cookies=cookies)
         print(r.text)
         time.sleep(5)
 
@@ -156,24 +157,24 @@ elif sys.argv[2] == 'updatehost':
     url = host + '/org/openbmc/control/flash/bios'
 
     r = requests.post(url + '/action/updateViaTftp',
-            headers= {'Content-Type': 'application/json'},
-            data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
-            verify = False, cookies = cookies)
+                      headers={'Content-Type': 'application/json'},
+                      data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
+                      verify=False, cookies=cookies)
     if r.status_code != 200:
         print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     # {
     #   "data": {
-    #     "filename": "palmetto.pnor", 
-    #     "flasher_instance": "bios", 
-    #     "flasher_name": "flasher.exe", 
-    #     "flasher_path": "/usr/sbin/flasher.exe", 
-    #     "lock": 0, 
-    #     "name": "", 
+    #     "filename": "palmetto.pnor",
+    #     "flasher_instance": "bios",
+    #     "flasher_name": "flasher.exe",
+    #     "flasher_path": "/usr/sbin/flasher.exe",
+    #     "lock": 0,
+    #     "name": "",
     #     "status": "Downloading"
-    #   }, 
-    #   "message": "200 OK", 
+    #   },
+    #   "message": "200 OK",
     #   "status": "ok"
     # }
     #
@@ -182,6 +183,6 @@ elif sys.argv[2] == 'updatehost':
     # "status": "Flash Error"
 
     while True:
-        r = requests.get(url, verify = False, cookies = cookies)
+        r = requests.get(url, verify=False, cookies=cookies)
         print(r.text)
         time.sleep(5)

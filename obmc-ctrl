@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 #
 # OpenBMC REST interface command line client
 #
@@ -23,20 +23,23 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 PASSWORD = '0penBmc'
 
 def usage():
-    print "usage: %s [command]" % (sys.argv[0])
-    print
-    print "Commands:"
-    print "\tchassis"
-    print "\t  on         power on the host"
-    print "\t  off        immediately power off the host"
-    print "\t  reboot     immediately power cycle the host"
-    print "\t  softoff    request a graceful power down of the host"
-    print "\t  softreboot request a graceful power cycle of the host"
-    print "\t  state      request current host power state (default action)"
-    print
-    print "\tversion"
-    print "\t  display the software version information"
-    print
+    usage_string = """usage: {} [command]
+
+Commands:
+
+chassis
+    on         power on the host
+    off        immediately power off the host
+    reboot     immediately power cycle the host
+    softoff    request a graceful power down of the host
+    softreboot request a graceful power cycle of the host
+    state      request current host power state (default action)
+
+version
+    display the software version information
+
+"""
+    print(usage_string.format(sys.argv[0]))
 
 if len(sys.argv) < 2:
     usage()
@@ -50,7 +53,7 @@ r = requests.post(host + '/login',
         verify = False)
 
 if r.status_code != 200:
-    print 'login failed:', r.status_code
+    print('login failed: {}'.format(r.status_code))
     sys.exit(r.status_code)
 
 cookies = r.cookies
@@ -85,16 +88,16 @@ if sys.argv[2] == 'chassis':
             verify = False,
             cookies = cookies)
 
-    print 'chassis:', r.status_code
+    print('chassis: {}'.format(r.status_code))
 
     if action == 'state':
-        print r.text
+        print(r.text)
 
 elif sys.argv[2] == 'version':
     url = host + '/org/openbmc/inventory/system'
     r = requests.get(url, verify = False, cookies = r.cookies)
 
-    print r.text
+    print(r.text)
 
 elif sys.argv[2] == 'update':
     if len(sys.argv) != 5:
@@ -104,8 +107,8 @@ elif sys.argv[2] == 'update':
     tftp_server = sys.argv[3]
     update_file = sys.argv[4]
 
-    print 'Updating from %s with %s' % (tftp_server, update_file)
-    raw_input('Press enter to continue...')
+    print('Updating from {} with {}'.format(tftp_server, update_file))
+    input('Press enter to continue...')
 
     url = host + '/org/openbmc/control/flash/bmc'
 
@@ -113,14 +116,14 @@ elif sys.argv[2] == 'update':
             headers= {'Content-Type': 'application/json'},
             data='{"data": []}', verify = False, cookies = cookies)
     if r.status_code != 200:
-        print 'Error:', r.status_code
+        print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     r = requests.put(url + '/attr/preserve_network_settings',
             headers= {'Content-Type': 'application/json'},
             data='{"data": 1}', verify = False, cookies = cookies)
     if r.status_code != 200:
-        print 'Error:', r.status_code
+        print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     r = requests.post(url + '/action/updateViaTftp',
@@ -128,14 +131,14 @@ elif sys.argv[2] == 'update':
             data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
             verify = False, cookies = cookies)
     if r.status_code != 200:
-        print 'Error:', r.status_code
+        print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     while True:
         r = requests.post(url + '/action/GetUpdateProgress',
                 headers= {'Content-Type': 'application/json'},
                 data='{"data": []}', verify = False, cookies = cookies)
-        print r.text
+        print(r.text)
         time.sleep(5)
 
 
@@ -147,8 +150,8 @@ elif sys.argv[2] == 'updatehost':
     tftp_server = sys.argv[3]
     update_file = sys.argv[4]
 
-    print 'Updating from %s with %s' % (tftp_server, update_file)
-    raw_input('Press enter to continue...')
+    print('Updating from {} with {}').format(tftp_server, update_file)
+    input('Press enter to continue...')
 
     url = host + '/org/openbmc/control/flash/bios'
 
@@ -157,7 +160,7 @@ elif sys.argv[2] == 'updatehost':
             data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
             verify = False, cookies = cookies)
     if r.status_code != 200:
-        print 'Error:', r.status_code
+        print('Error: {}'.format(r.status_code))
         sys.exit(1)
 
     # {
@@ -178,8 +181,7 @@ elif sys.argv[2] == 'updatehost':
     # "status": "Flashing: 15%"
     # "status": "Flash Error"
 
-
     while True:
         r = requests.get(url, verify = False, cookies = cookies)
-        print r.text
+        print(r.text)
         time.sleep(5)

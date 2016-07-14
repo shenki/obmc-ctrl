@@ -1,0 +1,92 @@
+#!/usr/bin/python2
+#
+# OpenBMC REST interface command line client
+#
+# Copyright 2016 IBM Corp, Joel Stanley <joel@jms.id.au>
+# Licensed under the Apache License, Version 2.0
+#
+
+import sys
+import requests
+
+# This avoids a warning on stdout when connecting to the self-signed
+# certificate used on OpenBMC:
+#  /usr/lib/python2.7/dist-packages/urllib3/connectionpool.py:794:
+#  InsecureRequestWarning: Unverified HTTPS request is being made. Adding
+#  certificate verification is strongly advised. See:
+#  https://urllib3.readthedocs.org/en/latest/security.html
+#  InsecureRequestWarning)
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+PASSWORD = '0penBmc'
+URL = "https://%s/org/openbmc/control/chassis0/action"
+
+def usage():
+    print "usage: %s [command]" % (sys.argv[0])
+    print
+    print "Commands:"
+    print "\tchassis"
+    print "\t  on         power on the host"
+    print "\t  off        immediately power off the host"
+    print "\t  reboot     immediately power cycle the host"
+    print "\t  softoff    request a graceful power down of the host"
+    print "\t  softreboot request a graceful power cycle of the host"
+    print "\t  state      request current host power state (default action)"
+    print
+    print "\tversion"
+    print "\t  display the software version information"
+    print
+
+if len(sys.argv) < 2:
+    usage()
+    sys.exit(1)
+
+host = 'https://%s' % sys.argv[1]
+
+r = requests.post(host + '/login',
+        headers={'Content-Type': 'application/json'},
+        data='{"data": [ "root", "0penBmc" ] }',
+        verify = False)
+
+if r.status_code != 200:
+    print 'login failed:', r.status_code
+    sys.exit(r.status_code)
+
+if sys.argv[2] == 'chassis':
+    if len(sys.argv) != 3:
+        usage()
+        sys.exit(1)
+
+    action_map = {
+            'on': 'powerOn',
+            'off': 'powerOff',
+            'softoff': 'softPowerOff',
+            'softreboot': 'softReboot',
+            'reboot': 'reboot',
+            'idon': 'setIdentify',
+            'idoff': 'clearIdentify',
+            'state': 'getPowerstate',
+    }
+
+    if sys.argv[3] not in action_map:
+        usage()
+        sys.exit(1)
+
+    action = action_map[sys.argv[3]]
+
+    url = host + '/org/openbmc/control/chassis0/action/' + action
+
+    r = requests.post(url,
+            headers={'Content-Type': 'application/json'},
+            data='{"data": []}',
+            verify = False,
+            cookies = r.cookies)
+
+    print 'chassis:', r.status_code
+
+elif sys.argv[2] == 'version':
+    url = host + '/org/openbmc/inventory/system'
+    r = requests.get(url, verify = False, cookies = r.cookies)
+
+    print r.text

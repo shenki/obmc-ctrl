@@ -21,7 +21,6 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 PASSWORD = '0penBmc'
-URL = "https://%s/org/openbmc/control/chassis0/action"
 
 def usage():
     print "usage: %s [command]" % (sys.argv[0])
@@ -160,6 +159,25 @@ elif sys.argv[2] == 'updatehost':
     if r.status_code != 200:
         print 'Error:', r.status_code
         sys.exit(1)
+
+    # {
+    #   "data": {
+    #     "filename": "palmetto.pnor", 
+    #     "flasher_instance": "bios", 
+    #     "flasher_name": "flasher.exe", 
+    #     "flasher_path": "/usr/sbin/flasher.exe", 
+    #     "lock": 0, 
+    #     "name": "", 
+    #     "status": "Downloading"
+    #   }, 
+    #   "message": "200 OK", 
+    #   "status": "ok"
+    # }
+    #
+    # "status": "Downloading"
+    # "status": "Flashing: 15%"
+    # "status": "Flash Error"
+
 
     while True:
         r = requests.get(url, verify = False, cookies = cookies)

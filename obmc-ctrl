@@ -8,6 +8,7 @@
 
 import sys
 import requests
+import time
 
 # This avoids a warning on stdout when connecting to the self-signed
 # certificate used on OpenBMC:
@@ -53,8 +54,10 @@ if r.status_code != 200:
     print 'login failed:', r.status_code
     sys.exit(r.status_code)
 
+cookies = r.cookies
+
 if sys.argv[2] == 'chassis':
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         usage()
         sys.exit(1)
 
@@ -81,12 +84,84 @@ if sys.argv[2] == 'chassis':
             headers={'Content-Type': 'application/json'},
             data='{"data": []}',
             verify = False,
-            cookies = r.cookies)
+            cookies = cookies)
 
     print 'chassis:', r.status_code
+
+    if action == 'state':
+        print r.text
 
 elif sys.argv[2] == 'version':
     url = host + '/org/openbmc/inventory/system'
     r = requests.get(url, verify = False, cookies = r.cookies)
 
     print r.text
+
+elif sys.argv[2] == 'update':
+    if len(sys.argv) != 5:
+        usage()
+        sys.exit(1)
+
+    tftp_server = sys.argv[3]
+    update_file = sys.argv[4]
+
+    print 'Updating from %s with %s' % (tftp_server, update_file)
+    raw_input('Press enter to continue...')
+
+    url = host + '/org/openbmc/control/flash/bmc'
+
+    r = requests.post(url + '/action/prepareForUpdate',
+            headers= {'Content-Type': 'application/json'},
+            data='{"data": []}', verify = False, cookies = cookies)
+    if r.status_code != 200:
+        print 'Error:', r.status_code
+        sys.exit(1)
+
+    r = requests.put(url + '/attr/preserve_network_settings',
+            headers= {'Content-Type': 'application/json'},
+            data='{"data": 1}', verify = False, cookies = cookies)
+    if r.status_code != 200:
+        print 'Error:', r.status_code
+        sys.exit(1)
+
+    r = requests.post(url + '/action/updateViaTftp',
+            headers= {'Content-Type': 'application/json'},
+            data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
+            verify = False, cookies = cookies)
+    if r.status_code != 200:
+        print 'Error:', r.status_code
+        sys.exit(1)
+
+    while True:
+        r = requests.post(url + '/action/GetUpdateProgress',
+                headers= {'Content-Type': 'application/json'},
+                data='{"data": []}', verify = False, cookies = cookies)
+        print r.text
+        time.sleep(5)
+
+
+elif sys.argv[2] == 'updatehost':
+    if len(sys.argv) != 5:
+        usage()
+        sys.exit(1)
+
+    tftp_server = sys.argv[3]
+    update_file = sys.argv[4]
+
+    print 'Updating from %s with %s' % (tftp_server, update_file)
+    raw_input('Press enter to continue...')
+
+    url = host + '/org/openbmc/control/flash/bios'
+
+    r = requests.post(url + '/action/updateViaTftp',
+            headers= {'Content-Type': 'application/json'},
+            data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
+            verify = False, cookies = cookies)
+    if r.status_code != 200:
+        print 'Error:', r.status_code
+        sys.exit(1)
+
+    while True:
+        r = requests.get(url, verify = False, cookies = cookies)
+        print r.text
+        time.sleep(5)

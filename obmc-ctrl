@@ -9,6 +9,8 @@
 import sys
 import requests
 import time
+import json
+import argparse
 
 # This avoids a warning on stdout when connecting to the self-signed
 # certificate used on OpenBMC:
@@ -17,53 +19,12 @@ import time
 #  certificate verification is strongly advised. See:
 #  https://urllib3.readthedocs.org/en/latest/security.html
 #  InsecureRequestWarning)
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings()
 
 PASSWORD = '0penBmc'
 
 
-def usage():
-    usage_string = """usage: {} [command]
-
-Commands:
-
-chassis
-    on         power on the host
-    off        immediately power off the host
-    reboot     immediately power cycle the host
-    softoff    request a graceful power down of the host
-    softreboot request a graceful power cycle of the host
-    state      request current host power state (default action)
-
-version
-    display the software version information
-
-"""
-    print(usage_string.format(sys.argv[0]))
-
-if len(sys.argv) < 2:
-    usage()
-    sys.exit(1)
-
-host = 'https://%s' % sys.argv[1]
-
-r = requests.post(host + '/login',
-                  headers={'Content-Type': 'application/json'},
-                  data='{"data": [ "root", "0penBmc" ] }',
-                  verify=False)
-
-if r.status_code != 200:
-    print('login failed: {}'.format(r.status_code))
-    sys.exit(r.status_code)
-
-cookies = r.cookies
-
-if sys.argv[2] == 'chassis':
-    if len(sys.argv) != 4:
-        usage()
-        sys.exit(1)
-
+def do_chassis_cmd(args):
     action_map = {
             'on': 'powerOn',
             'off': 'powerOff',
@@ -75,13 +36,15 @@ if sys.argv[2] == 'chassis':
             'state': 'getPowerstate',
     }
 
-    if sys.argv[3] not in action_map:
-        usage()
+    if args.chassis not in action_map:
+        print('Invalid action for chassis command:', args.chassis)
         sys.exit(1)
 
-    action = action_map[sys.argv[3]]
+    action = action_map[args.chassis]
 
-    url = host + '/org/openbmc/control/chassis0/action/' + action
+    cookies = login(args.bmc)
+
+    url = args.bmc + '/org/openbmc/control/chassis0/action/' + action
 
     r = requests.post(url,
                       headers={'Content-Type': 'application/json'},
@@ -94,71 +57,63 @@ if sys.argv[2] == 'chassis':
     if action == 'state':
         print(r.text)
 
-elif sys.argv[2] == 'version':
-    url = host + '/org/openbmc/inventory/system'
-    r = requests.get(url, verify=False, cookies=r.cookies)
+
+def login(host):
+    """login to the BMC and return a cookie object"""
+
+    r = requests.post('https://' + host + '/login',
+                      headers={'Content-Type': 'application/json'},
+                      data='{"data": [ "root", "0penBmc" ] }',
+                      verify=False)
+
+    if r.status_code != 200:
+        print('login failed: {}'.format(r.status_code))
+        sys.exit(r.status_code)
+
+    return r.cookies
+
+
+def do_version_cmd(args):
+    cookies = login(args.bmc)
+
+    url = 'https://' + args.bmc + '/org/openbmc/inventory/system'
+    r = requests.get(url, verify=False, cookies=cookies)
 
     print(r.text)
 
-elif sys.argv[2] == 'update':
-    if len(sys.argv) != 5:
-        usage()
-        sys.exit(1)
 
-    tftp_server = sys.argv[3]
-    update_file = sys.argv[4]
-
-    print('Updating from {} with {}'.format(tftp_server, update_file))
+def do_update_cmd(args):
+    print('Updating from {} with {}').format(args.tftp_server,
+                                             args.update_file)
     input('Press enter to continue...')
 
-    url = host + '/org/openbmc/control/flash/bmc'
+    if args.flash == 'pnor':
+        args.flash = 'bios'
 
-    r = requests.post(url + '/action/prepareForUpdate',
-                      headers={'Content-Type': 'application/json'},
-                      data='{"data": []}', verify=False, cookies=cookies)
-    if r.status_code != 200:
-        print('Error: {}'.format(r.status_code))
-        sys.exit(1)
+    cookies = login(args.bmc)
 
-    r = requests.put(url + '/attr/preserve_network_settings',
-                     headers={'Content-Type': 'application/json'},
-                     data='{"data": 1}', verify=False, cookies=cookies)
-    if r.status_code != 200:
-        print('Error: {}'.format(r.status_code))
-        sys.exit(1)
+    url = 'https://' + args.bmc + '/org/openbmc/control/flash/' + args.flash
 
-    r = requests.post(url + '/action/updateViaTftp',
-                      headers={'Content-Type': 'application/json'},
-                      data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
-                      verify=False, cookies=cookies)
-    if r.status_code != 200:
-        print('Error: {}'.format(r.status_code))
-        sys.exit(1)
-
-    while True:
-        r = requests.post(url + '/action/GetUpdateProgress',
+    if args.flash == 'bmc':
+        r = requests.post(url + '/action/prepareForUpdate',
                           headers={'Content-Type': 'application/json'},
                           data='{"data": []}', verify=False, cookies=cookies)
-        print(r.text)
-        time.sleep(5)
+        if r.status_code != 200:
+            print('Error: {}'.format(r.status_code))
+            sys.exit(1)
 
+        r = requests.put(url + '/attr/preserve_network_settings',
+                         headers={'Content-Type': 'application/json'},
+                         data='{"data": 1}', verify=False, cookies=cookies)
+        if r.status_code != 200:
+            print('Error: {}'.format(r.status_code))
+            sys.exit(1)
 
-elif sys.argv[2] == 'updatehost':
-    if len(sys.argv) != 5:
-        usage()
-        sys.exit(1)
-
-    tftp_server = sys.argv[3]
-    update_file = sys.argv[4]
-
-    print('Updating from {} with {}').format(tftp_server, update_file)
-    input('Press enter to continue...')
-
-    url = host + '/org/openbmc/control/flash/bios'
+    data = '{"data": ["%s", "%s"]}' % (args.tftp_server, args.update_file)
 
     r = requests.post(url + '/action/updateViaTftp',
                       headers={'Content-Type': 'application/json'},
-                      data='{"data": ["%s", "%s"]}' % (tftp_server, update_file),
+                      data=data,
                       verify=False, cookies=cookies)
     if r.status_code != 200:
         print('Error: {}'.format(r.status_code))
@@ -182,7 +137,64 @@ elif sys.argv[2] == 'updatehost':
     # "status": "Flashing: 15%"
     # "status": "Flash Error"
 
+    # The docs suggest this is require to get the progress for flashing the bmc
+#    while True:
+#        r = requests.post(url + '/action/GetUpdateProgress',
+#                          headers={'Content-Type': 'application/json'},
+#                          data='{"data": []}', verify=False, cookies=cookies)
+#        print(r.text)
+#        time.sleep(5)
+
     while True:
         r = requests.get(url, verify=False, cookies=cookies)
-        print(r.text)
+        try:
+            status = json.loads(r.text)['data']['status']
+        except:
+            status = r.text
+        print(status)
+        if status.contains("Flash Error"):
+            sys.exit(1)
         time.sleep(5)
+
+
+def usage():
+    usage_string = """usage: {} [command]
+
+Commands:
+
+chassis
+    on         power on the host
+    off        immediately power off the host
+    reboot     immediately power cycle the host
+    softoff    request a graceful power down of the host
+    softreboot request a graceful power cycle of the host
+    state      request current host power state (default action)
+
+version
+    display the software version information
+
+"""
+    print(usage_string.format(sys.argv[0]))
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Control an OpenBMC system')
+    parser.add_argument('--bmc', required=True,
+                        help='hostname or IP address of the BMC')
+    subparsers = parser.add_subparsers()
+
+    cmd = subparsers.add_parser('chassis')
+    cmd.add_argument('chassis', choices=['on', 'off', 'reboot', 'softoff',
+                     'softreboot', 'state'])
+    cmd.set_defaults(func=do_chassis_cmd)
+
+    cmd = subparsers.add_parser('version')
+    cmd.set_defaults(func=do_version_cmd)
+
+    cmd = subparsers.add_parser('update')
+    cmd.add_argument('flash', choices=['bmc', 'pnor'])
+    cmd.add_argument('tftp_server')
+    cmd.add_argument('update_file')
+    cmd.set_defaults(func=do_update_cmd)
+
+    args = parser.parse_args()
+    args.func(args)
